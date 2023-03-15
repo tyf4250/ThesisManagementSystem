@@ -29,6 +29,7 @@
         default-active="1-1"
         text-color="#fff"
         @select="state.handleSelect"
+        :router="true"
       >
         <div class="user-info">
           <img :src="state.userInfo.userIco" class="user-img" alt style="width:45px;height:45px" />
@@ -48,7 +49,7 @@
             <span>课题信息</span>
           </template>
           <el-menu-item-group>
-            <el-menu-item index="1-1">我的课题</el-menu-item>
+            <el-menu-item index="/login">我的课题</el-menu-item>
             <el-menu-item index="1-2">课题选择</el-menu-item>
           </el-menu-item-group>
         </el-sub-menu>
@@ -69,19 +70,27 @@
     </el-row>
   </div>
   <el-dialog v-model="state.dialogVisible" title="修改密码" width="30%">
-    <el-form :model="state.modifyPasswordForm" style="max-width: 460px">
-      <el-form-item>
-        <el-input v-model="state.modifyPasswordForm.email" placeholder="请输入邮箱地址" />
+    <el-form :model="state.modifyPasswordForm" style="max-width: 460px" :rules="state.rules">
+      <el-alert title="即将往你的邮箱发送验证码" :closable="false" type="warning" show-icon />
+      <el-form-item prop="modifyPassword">
+        <el-input
+          v-model="state.modifyPasswordForm.modifyPassword"
+          type="password"
+          placeholder="请输入密码"
+          show-password
+        />
       </el-form-item>
-      <el-form-item>
-        <el-input v-model="state.modifyPasswordForm.password" placeholder="请输入密码" />
+      <el-form-item prop="modifyPasswordAgain">
+        <el-input
+          v-model="state.modifyPasswordForm.modifyPasswordAgain"
+          type="password"
+          placeholder="请再次输入密码"
+          show-password
+        />
       </el-form-item>
-      <el-form-item>
-        <el-input v-model="state.modifyPasswordForm.passwordTwice" placeholder="请再次输入密码" />
-      </el-form-item>
-      <el-form-item style="text-align:center">
+      <el-form-item style="text-align:center" prop="checkCode">
         <el-col :span="16">
-          <el-input v-model="state.modifyPasswordForm.code" placeholder="请输入验证码" />
+          <el-input v-model="state.modifyPasswordForm.checkCode" placeholder="请输入验证码" />
         </el-col>
         <el-col :span="8">
           <el-button
@@ -92,7 +101,13 @@
             @click="state.sendVerifyCode"
           >
             <span v-if="!state.verifyBtn.disabled">发送验证码</span>
-            <el-countdown format="ss" :value="state.timer" v-else />
+            <el-countdown
+              format="ss"
+              :value="state.timer"
+              @finish="state.countdownOver"
+              value-style="font-size:14px;line-height:32px;color:#fff"
+              v-else
+            />
           </el-button>
         </el-col>
       </el-form-item>
@@ -135,16 +150,45 @@ onBeforeMount(async () => {
     console.log(error);
   }
 });
+
+/**自定义再次输入密码框校验 */
+const checkPasswordAgain = (rule, value, callback) => {
+  if (!value || value !== state.modifyPasswordForm.modifyPassword) {
+    callback(new Error("与第一次输入的密码请保持一致"));
+  } else {
+    callback();
+  }
+};
 const state = reactive({
   username: computed(() => getUserName),
   usertype: computed(() => getUserType),
   verifyBtn: { loading: false, disabled: false },
-  modifyPasswordForm: {},
+  modifyPasswordForm: {
+    modifyPassword: "",
+    modifyPasswordAgain: "",
+    checkCode: "",
+  },
   dialogVisible: false,
-  timer: Date.now() + 1000 * 60,
+  timer: computed(() => Date.now() + 1000 * 60),
   userInfo: {},
+  rules: {
+    modifyPassword: [
+      { required: true, message: "请输入修改后的密码", trigger: "change" },
+    ],
+    modifyPasswordAgain: [
+      {
+        validator: checkPasswordAgain,
+        trigger: "change",
+      },
+    ],
+    checkCode: [{ required: true, message: "请输入验证码", trigger: "change" }],
+  },
+  /**验证码倒计时结束触发 */
+  countdownOver() {
+    state.verifyBtn.loading = false;
+    state.verifyBtn.disabled = false;
+  },
   handleSelect(index, indexPath, item) {
-    console.log(index, indexPath);
     switch (index) {
       case "0-2":
         state.dialogVisible = true;
@@ -169,7 +213,7 @@ const state = reactive({
         location.href = "/login";
       })
       .catch((err) => {
-        console.log(err);
+        ElMessageBox.error("退出登录失败");
       });
   },
   /**处理修改密码提交事件 */
@@ -177,15 +221,16 @@ const state = reactive({
   /**发送验证码 */
   async sendVerifyCode() {
     state.verifyBtn.loading = true;
+    state.verifyBtn.disabled = true;
     const params = {
-      userEmail: state.modifyPasswordForm.email,
+      userEmail: state.userInfo.email,
     };
-    console.log(params);
+    console.log(getEmailCode);
     try {
       const res = await getEmailCode(params);
+      console.log(res);
     } catch (error) {
-    } finally {
-      state.verifyBtn.loading = false;
+      conosle.log(error);
     }
   },
 });
@@ -193,6 +238,9 @@ const state = reactive({
 <style lang="less" scoped>
 :deep(.el-dialog__body) {
   padding: 10px;
+}
+:deep(.el-alert) {
+  margin: 10px 0;
 }
 .container {
   min-height: 100vh;
